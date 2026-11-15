@@ -7,10 +7,13 @@ const dislikeButton = document.getElementById("dislikeButton");
 const resetButton = document.getElementById("resetButton");
 const app = document.getElementById("app");
 
+const END_SCREEN = "__end__";
+
 let quotes = [];
 let currentQuote = null;
 let history = [];
 let historyIndex = -1;
+let isChanging = false;
 
 let preferences = {
   liked: [],
@@ -20,8 +23,8 @@ let preferences = {
 
 let touchStartX = 0;
 let touchStartY = 0;
-let isChanging = false;
 
+// Load saved preferences
 function loadPreferences() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -38,14 +41,19 @@ function loadPreferences() {
   }
 }
 
+// Save preferences
 function savePreferences() {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(preferences));
+    localStorage.setItem(
+      STORAGE_KEY,
+      JSON.stringify(preferences)
+    );
   } catch (error) {
     console.warn("Could not save preferences:", error);
   }
 }
 
+// Normalize quote text
 function tokenize(text) {
   return text
     .toLowerCase()
@@ -55,6 +63,7 @@ function tokenize(text) {
     .filter(word => word.length > 2);
 }
 
+// Common words to ignore
 const stopWords = new Set([
   "the", "and", "that", "this", "with", "from",
   "your", "you", "are", "was", "were", "will",
@@ -70,9 +79,12 @@ const stopWords = new Set([
 ]);
 
 function getKeywords(text) {
-  return tokenize(text).filter(word => !stopWords.has(word));
+  return tokenize(text).filter(
+    word => !stopWords.has(word)
+  );
 }
 
+// Generate consecutive word pairs
 function getBigrams(words) {
   const result = new Set();
 
@@ -83,6 +95,7 @@ function getBigrams(words) {
   return result;
 }
 
+// Calculate quote similarity
 function similarity(a, b) {
   const wordsA = getKeywords(a);
   const wordsB = getKeywords(b);
@@ -107,16 +120,22 @@ function similarity(a, b) {
   let phraseMatches = 0;
 
   for (const phrase of bigramsA) {
-    if (bigramsB.has(phrase)) phraseMatches++;
+    if (bigramsB.has(phrase)) {
+      phraseMatches++;
+    }
   }
 
   const phraseScore =
     phraseMatches /
-    Math.max(1, new Set([...bigramsA, ...bigramsB]).size);
+    Math.max(
+      1,
+      new Set([...bigramsA, ...bigramsB]).size
+    );
 
   return jaccard * 0.75 + phraseScore * 0.25;
 }
 
+// Score candidates against liked and disliked quotes
 function recommendationScore(candidate) {
   const likedQuotes = quotes.filter(q =>
     preferences.liked.includes(q.id)
@@ -146,6 +165,7 @@ function recommendationScore(candidate) {
   return positive * 1.5 - negative * 1.2;
 }
 
+// Select the next recommendation
 function getNextQuote() {
   const available = quotes.filter(q =>
     !preferences.seen.includes(q.id)
@@ -153,11 +173,14 @@ function getNextQuote() {
 
   if (!available.length) return null;
 
+  // Random discovery before feedback exists
   if (
     preferences.liked.length === 0 &&
     preferences.disliked.length === 0
   ) {
-    return available[Math.floor(Math.random() * available.length)];
+    return available[
+      Math.floor(Math.random() * available.length)
+    ];
   }
 
   const ranked = available.map(quote => ({
@@ -167,20 +190,40 @@ function getNextQuote() {
 
   ranked.sort((a, b) => b.score - a.score);
 
-  const explore = Math.random() < 0.15;
+  // Occasionally explore other topics
+  if (Math.random() < 0.15) {
+    const pool = ranked.slice(
+      0,
+      Math.min(5, ranked.length)
+    );
 
-  if (explore) {
-    const pool = ranked.slice(0, Math.min(5, ranked.length));
-    return pool[Math.floor(Math.random() * pool.length)].quote;
+    return pool[
+      Math.floor(Math.random() * pool.length)
+    ].quote;
   }
 
-  const top = ranked.slice(0, Math.min(3, ranked.length));
+  // Randomize among the strongest recommendations
+  const top = ranked.slice(
+    0,
+    Math.min(3, ranked.length)
+  );
 
-  return top[Math.floor(Math.random() * top.length)].quote;
+  return top[
+    Math.floor(Math.random() * top.length)
+  ].quote;
 }
 
+// Update like and dislike buttons
 function updateButtons() {
-  if (!currentQuote) return;
+  if (!currentQuote) {
+    likeButton.classList.remove("selected");
+    dislikeButton.classList.remove("selected");
+
+    likeButton.setAttribute("aria-pressed", "false");
+    dislikeButton.setAttribute("aria-pressed", "false");
+
+    return;
+  }
 
   const liked = preferences.liked.includes(currentQuote.id);
   const disliked = preferences.disliked.includes(currentQuote.id);
@@ -192,18 +235,22 @@ function updateButtons() {
   dislikeButton.setAttribute("aria-pressed", String(disliked));
 }
 
+// Display a quote or the end screen
 function displayQuote(quote, addToHistory = true) {
   if (!quote) {
     currentQuote = null;
 
-    quoteText.textContent =
-      "You've discovered every quote. Reset your preferences to start again.";
+    quoteText.classList.add("changing");
 
-    likeButton.classList.remove("selected");
-    dislikeButton.classList.remove("selected");
+    setTimeout(() => {
+      quoteText.textContent =
+        "You've discovered every quote. Reset your preferences to start again.";
 
-    likeButton.setAttribute("aria-pressed", "false");
-    dislikeButton.setAttribute("aria-pressed", "false");
+      quoteText.classList.remove("changing");
+
+      updateButtons();
+      isChanging = false;
+    }, 150);
 
     return;
   }
@@ -211,7 +258,7 @@ function displayQuote(quote, addToHistory = true) {
   currentQuote = quote;
 
   if (addToHistory) {
-    // Remove forward history when discovering a new quote.
+    // Remove forward history when discovering a new quote
     history = history.slice(0, historyIndex + 1);
 
     history.push(quote.id);
@@ -229,41 +276,66 @@ function displayQuote(quote, addToHistory = true) {
   }, 150);
 }
 
+// Navigate forward
 function showNextQuote() {
   if (isChanging) return;
 
-  // First, move through existing browsing history.
+  // If forward history exists, use it first
   if (historyIndex < history.length - 1) {
     historyIndex++;
 
-    const quote = quotes.find(
-      q => q.id === history[historyIndex]
-    );
+    const nextId = history[historyIndex];
 
-    displayQuote(quote, false);
+    if (nextId === END_SCREEN) {
+      displayQuote(null, false);
+      return;
+    }
+
+    const quote = quotes.find(q => q.id === nextId);
+
+    if (quote) {
+      displayQuote(quote, false);
+    }
+
     return;
   }
 
   const next = getNextQuote();
 
+  // No unseen quotes remain
   if (!next) {
-    displayQuote(null);
+    // Record the end screen as its own history entry
+    history = history.slice(0, historyIndex + 1);
+    history.push(END_SCREEN);
+    historyIndex = history.length - 1;
+
+    displayQuote(null, false);
     return;
   }
 
-  preferences.seen.push(next.id);
-  savePreferences();
+  // Record discovery
+  if (!preferences.seen.includes(next.id)) {
+    preferences.seen.push(next.id);
+    savePreferences();
+  }
 
   displayQuote(next);
 }
 
+// Navigate backward
 function showPreviousQuote() {
   if (isChanging || historyIndex <= 0) return;
 
   historyIndex--;
 
+  const previousId = history[historyIndex];
+
+  if (previousId === END_SCREEN) {
+    return;
+  }
+
   const previous = quotes.find(
-    q => q.id === history[historyIndex]
+    q => q.id === previousId
   );
 
   if (previous) {
@@ -271,13 +343,20 @@ function showPreviousQuote() {
   }
 }
 
+// Like or dislike a quote
 function vote(type) {
   if (!currentQuote || isChanging) return;
 
   const id = currentQuote.id;
 
-  preferences.liked = preferences.liked.filter(x => x !== id);
-  preferences.disliked = preferences.disliked.filter(x => x !== id);
+  // Remove any previous vote
+  preferences.liked = preferences.liked.filter(
+    x => x !== id
+  );
+
+  preferences.disliked = preferences.disliked.filter(
+    x => x !== id
+  );
 
   if (type === "like") {
     preferences.liked.push(id);
@@ -288,9 +367,11 @@ function vote(type) {
   savePreferences();
   updateButtons();
 
+  // Advance automatically
   showNextQuote();
 }
 
+// Load quotes from data.quotes
 async function loadQuotes() {
   try {
     const response = await fetch("./data.quotes", {
@@ -318,16 +399,27 @@ async function loadQuotes() {
 
     loadPreferences();
 
-    const validIds = new Set(quotes.map(q => q.id));
+    // Remove preferences for quotes that no longer exist
+    const validIds = new Set(
+      quotes.map(q => q.id)
+    );
 
-    preferences.liked = preferences.liked.filter(id => validIds.has(id));
-    preferences.disliked = preferences.disliked.filter(id => validIds.has(id));
-    preferences.seen = preferences.seen.filter(id => validIds.has(id));
+    preferences.liked = preferences.liked.filter(
+      id => validIds.has(id)
+    );
+
+    preferences.disliked = preferences.disliked.filter(
+      id => validIds.has(id)
+    );
+
+    preferences.seen = preferences.seen.filter(
+      id => validIds.has(id)
+    );
 
     history = [];
     historyIndex = -1;
 
-    // Start another discovery round only if all quotes were seen.
+    // Start another discovery round if all quotes were seen
     if (preferences.seen.length >= quotes.length) {
       preferences.seen = [];
       savePreferences();
@@ -343,9 +435,16 @@ async function loadQuotes() {
   }
 }
 
-likeButton.addEventListener("click", () => vote("like"));
-dislikeButton.addEventListener("click", () => vote("dislike"));
+// Button events
+likeButton.addEventListener("click", () => {
+  vote("like");
+});
 
+dislikeButton.addEventListener("click", () => {
+  vote("dislike");
+});
+
+// Reset preferences
 resetButton.addEventListener("click", () => {
   const confirmed = confirm(
     "Reset all likes, dislikes and discovery history on this device?"
@@ -363,9 +462,11 @@ resetButton.addEventListener("click", () => {
   historyIndex = -1;
 
   savePreferences();
+
   showNextQuote();
 });
 
+// Keyboard navigation
 document.addEventListener("keydown", event => {
   if (event.key === "ArrowRight") {
     event.preventDefault();
@@ -382,6 +483,7 @@ document.addEventListener("keydown", event => {
   }
 });
 
+// Swipe navigation
 app.addEventListener("touchstart", event => {
   if (!event.touches.length) return;
 
@@ -399,7 +501,10 @@ app.addEventListener("touchend", event => {
   const deltaY = endY - touchStartY;
 
   if (Math.abs(deltaX) < 55) return;
-  if (Math.abs(deltaX) < Math.abs(deltaY) * 1.3) return;
+
+  if (Math.abs(deltaX) < Math.abs(deltaY) * 1.3) {
+    return;
+  }
 
   if (deltaX < 0) {
     showNextQuote();
@@ -408,4 +513,5 @@ app.addEventListener("touchend", event => {
   }
 }, { passive: true });
 
+// Start the website
 loadQuotes();
