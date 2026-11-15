@@ -1,5 +1,10 @@
 
 const STORAGE_KEY = "quotes_preferences_v1";
+const END_SCREEN = "__end__";
+
+// ==========================================
+// ELEMENTS
+// ==========================================
 
 const quoteText = document.getElementById("quoteText");
 const likeButton = document.getElementById("likeButton");
@@ -7,7 +12,86 @@ const dislikeButton = document.getElementById("dislikeButton");
 const resetButton = document.getElementById("resetButton");
 const app = document.getElementById("app");
 
-const END_SCREEN = "__end__";
+// ==========================================
+// DYNAMIC FAVICON AND APPLE ICON
+// ==========================================
+
+function generateWebsiteIcons() {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg"
+         width="512"
+         height="512"
+         viewBox="0 0 512 512">
+
+      <circle
+        cx="256"
+        cy="256"
+        r="240"
+        fill="#a855f7"
+      />
+
+      <text
+        x="256"
+        y="365"
+        text-anchor="middle"
+        font-family="Georgia, serif"
+        font-size="380"
+        font-weight="bold"
+        fill="#ffffff"
+      >“</text>
+
+    </svg>
+  `;
+
+  const svgBlob = new Blob(
+    [svg],
+    { type: "image/svg+xml" }
+  );
+
+  const svgUrl = URL.createObjectURL(svgBlob);
+
+  // Browser favicon
+  const favicon = document.getElementById("dynamic-favicon");
+
+  if (favicon) {
+    favicon.href = svgUrl;
+  }
+
+  // Generate Apple Touch Icon
+  const image = new Image();
+
+  image.onload = () => {
+    const canvas = document.createElement("canvas");
+
+    canvas.width = 180;
+    canvas.height = 180;
+
+    const context = canvas.getContext("2d");
+
+    context.drawImage(image, 0, 0, 180, 180);
+
+    const appleIcon = document.getElementById("apple-icon");
+
+    if (appleIcon) {
+      appleIcon.href = canvas.toDataURL("image/png");
+    }
+
+    URL.revokeObjectURL(svgUrl);
+  };
+
+  image.onerror = () => {
+    URL.revokeObjectURL(svgUrl);
+    console.error("Could not generate website icons.");
+  };
+
+  image.src = svgUrl;
+}
+
+generateWebsiteIcons();
+
+// ==========================================
+// QUOTE DATA
+// ==========================================
 
 let quotes = [];
 let currentQuote = null;
@@ -24,7 +108,10 @@ let preferences = {
 let touchStartX = 0;
 let touchStartY = 0;
 
-// Load saved preferences
+// ==========================================
+// PREFERENCES
+// ==========================================
+
 function loadPreferences() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
@@ -41,7 +128,6 @@ function loadPreferences() {
   }
 }
 
-// Save preferences
 function savePreferences() {
   try {
     localStorage.setItem(
@@ -53,7 +139,10 @@ function savePreferences() {
   }
 }
 
-// Normalize quote text
+// ==========================================
+// TEXT ANALYSIS
+// ==========================================
+
 function tokenize(text) {
   return text
     .toLowerCase()
@@ -63,7 +152,6 @@ function tokenize(text) {
     .filter(word => word.length > 2);
 }
 
-// Common words to ignore
 const stopWords = new Set([
   "the", "and", "that", "this", "with", "from",
   "your", "you", "are", "was", "were", "will",
@@ -84,7 +172,6 @@ function getKeywords(text) {
   );
 }
 
-// Generate consecutive word pairs
 function getBigrams(words) {
   const result = new Set();
 
@@ -95,7 +182,10 @@ function getBigrams(words) {
   return result;
 }
 
-// Calculate quote similarity
+// ==========================================
+// QUOTE SIMILARITY
+// ==========================================
+
 function similarity(a, b) {
   const wordsA = getKeywords(a);
   const wordsB = getKeywords(b);
@@ -135,7 +225,10 @@ function similarity(a, b) {
   return jaccard * 0.75 + phraseScore * 0.25;
 }
 
-// Score candidates against liked and disliked quotes
+// ==========================================
+// RECOMMENDATION SYSTEM
+// ==========================================
+
 function recommendationScore(candidate) {
   const likedQuotes = quotes.filter(q =>
     preferences.liked.includes(q.id)
@@ -165,7 +258,6 @@ function recommendationScore(candidate) {
   return positive * 1.5 - negative * 1.2;
 }
 
-// Select the next recommendation
 function getNextQuote() {
   const available = quotes.filter(q =>
     !preferences.seen.includes(q.id)
@@ -173,7 +265,6 @@ function getNextQuote() {
 
   if (!available.length) return null;
 
-  // Random discovery before feedback exists
   if (
     preferences.liked.length === 0 &&
     preferences.disliked.length === 0
@@ -190,7 +281,6 @@ function getNextQuote() {
 
   ranked.sort((a, b) => b.score - a.score);
 
-  // Occasionally explore other topics
   if (Math.random() < 0.15) {
     const pool = ranked.slice(
       0,
@@ -202,7 +292,6 @@ function getNextQuote() {
     ].quote;
   }
 
-  // Randomize among the strongest recommendations
   const top = ranked.slice(
     0,
     Math.min(3, ranked.length)
@@ -213,7 +302,10 @@ function getNextQuote() {
   ].quote;
 }
 
-// Update like and dislike buttons
+// ==========================================
+// BUTTON STATES
+// ==========================================
+
 function updateButtons() {
   if (!currentQuote) {
     likeButton.classList.remove("selected");
@@ -235,10 +327,14 @@ function updateButtons() {
   dislikeButton.setAttribute("aria-pressed", String(disliked));
 }
 
-// Display a quote or the end screen
+// ==========================================
+// DISPLAY QUOTES
+// ==========================================
+
 function displayQuote(quote, addToHistory = true) {
   if (!quote) {
     currentQuote = null;
+    isChanging = true;
 
     quoteText.classList.add("changing");
 
@@ -258,17 +354,18 @@ function displayQuote(quote, addToHistory = true) {
   currentQuote = quote;
 
   if (addToHistory) {
-    // Remove forward history when discovering a new quote
     history = history.slice(0, historyIndex + 1);
 
     history.push(quote.id);
     historyIndex = history.length - 1;
   }
 
+  isChanging = true;
   quoteText.classList.add("changing");
 
   setTimeout(() => {
     quoteText.textContent = quote.text;
+
     quoteText.classList.remove("changing");
 
     updateButtons();
@@ -276,11 +373,14 @@ function displayQuote(quote, addToHistory = true) {
   }, 150);
 }
 
-// Navigate forward
+// ==========================================
+// NEXT QUOTE
+// ==========================================
+
 function showNextQuote() {
   if (isChanging) return;
 
-  // If forward history exists, use it first
+  // Revisit forward history first
   if (historyIndex < history.length - 1) {
     historyIndex++;
 
@@ -302,9 +402,8 @@ function showNextQuote() {
 
   const next = getNextQuote();
 
-  // No unseen quotes remain
+  // All quotes have been discovered
   if (!next) {
-    // Record the end screen as its own history entry
     history = history.slice(0, historyIndex + 1);
     history.push(END_SCREEN);
     historyIndex = history.length - 1;
@@ -313,7 +412,6 @@ function showNextQuote() {
     return;
   }
 
-  // Record discovery
   if (!preferences.seen.includes(next.id)) {
     preferences.seen.push(next.id);
     savePreferences();
@@ -322,7 +420,10 @@ function showNextQuote() {
   displayQuote(next);
 }
 
-// Navigate backward
+// ==========================================
+// PREVIOUS QUOTE
+// ==========================================
+
 function showPreviousQuote() {
   if (isChanging || historyIndex <= 0) return;
 
@@ -343,13 +444,15 @@ function showPreviousQuote() {
   }
 }
 
-// Like or dislike a quote
+// ==========================================
+// LIKE / DISLIKE
+// ==========================================
+
 function vote(type) {
   if (!currentQuote || isChanging) return;
 
   const id = currentQuote.id;
 
-  // Remove any previous vote
   preferences.liked = preferences.liked.filter(
     x => x !== id
   );
@@ -367,11 +470,13 @@ function vote(type) {
   savePreferences();
   updateButtons();
 
-  // Advance automatically
   showNextQuote();
 }
 
-// Load quotes from data.quotes
+// ==========================================
+// LOAD DATA.QUOTES
+// ==========================================
+
 async function loadQuotes() {
   try {
     const response = await fetch("./data.quotes", {
@@ -399,7 +504,6 @@ async function loadQuotes() {
 
     loadPreferences();
 
-    // Remove preferences for quotes that no longer exist
     const validIds = new Set(
       quotes.map(q => q.id)
     );
@@ -419,7 +523,6 @@ async function loadQuotes() {
     history = [];
     historyIndex = -1;
 
-    // Start another discovery round if all quotes were seen
     if (preferences.seen.length >= quotes.length) {
       preferences.seen = [];
       savePreferences();
@@ -435,7 +538,10 @@ async function loadQuotes() {
   }
 }
 
-// Button events
+// ==========================================
+// BUTTON EVENTS
+// ==========================================
+
 likeButton.addEventListener("click", () => {
   vote("like");
 });
@@ -444,7 +550,10 @@ dislikeButton.addEventListener("click", () => {
   vote("dislike");
 });
 
-// Reset preferences
+// ==========================================
+// RESET PREFERENCES
+// ==========================================
+
 resetButton.addEventListener("click", () => {
   const confirmed = confirm(
     "Reset all likes, dislikes and discovery history on this device?"
@@ -466,7 +575,10 @@ resetButton.addEventListener("click", () => {
   showNextQuote();
 });
 
-// Keyboard navigation
+// ==========================================
+// KEYBOARD NAVIGATION
+// ==========================================
+
 document.addEventListener("keydown", event => {
   if (event.key === "ArrowRight") {
     event.preventDefault();
@@ -483,7 +595,10 @@ document.addEventListener("keydown", event => {
   }
 });
 
-// Swipe navigation
+// ==========================================
+// SWIPE NAVIGATION
+// ==========================================
+
 app.addEventListener("touchstart", event => {
   if (!event.touches.length) return;
 
@@ -513,5 +628,8 @@ app.addEventListener("touchend", event => {
   }
 }, { passive: true });
 
-// Start the website
+// ==========================================
+// START WEBSITE
+// ==========================================
+
 loadQuotes();
