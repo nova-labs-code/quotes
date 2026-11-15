@@ -29,7 +29,7 @@ function generateWebsiteIcons() {
         r="240"
         fill="#a855f7"
       />
-
+<g transform="translate(256 256) scale(1.3) translate(-256 -256)">
       <!-- First quotation mark -->
 <path
   d="M211 185
@@ -52,7 +52,7 @@ function generateWebsiteIcons() {
   fill="#ffffff"
   transform="translate(104 0)"
 />
-
+</g>
     </svg>
   `;
 
