@@ -1,0 +1,50 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#121214">
+  <meta name="description" content="Discover quotes selected around your interests.">
+
+  <title>Quotes</title>
+
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+
+  <header>
+    <a class="logo" href="./">Quotes<span>.</span></a>
+    <span id="progress">0 / 0</span>
+  </header>
+
+  <main id="app">
+    <div id="quoteArea" aria-live="polite">
+      <div id="quoteText">Loading quotes...</div>
+    </div>
+
+    <div class="actions">
+      <button id="dislikeButton" class="feedback dislike"
+        aria-label="Dislike quote" title="Dislike">
+        ✕
+      </button>
+
+      <button id="likeButton" class="feedback like"
+        aria-label="Like quote" title="Like">
+        ♥
+      </button>
+    </div>
+
+    <div class="navigation-hint">
+      Swipe left or right to discover quotes
+    </div>
+  </main>
+
+  <footer>
+    <span>Quotes<span class="accent">.</span></span>
+    <button id="resetButton">Reset preferences</button>
+  </footer>
+
+</body>
+</html>
