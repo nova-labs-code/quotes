@@ -209,8 +209,8 @@ footer > span {
     scroll-behavior: auto !important;
     transition-duration: .01ms !important;
   }
-  
-  
+}
+
 .feedback.selected.like {
   background: #18382b;
   border-color: var(--green);
@@ -219,7 +219,4 @@ footer > span {
 .feedback.selected.dislike {
   background: #3b2025;
   border-color: var(--red);
-}
-
-  
 }
