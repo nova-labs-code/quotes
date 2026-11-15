@@ -32,7 +32,7 @@ function generateWebsiteIcons() {
 
       <text
   x="256"
-  y="256"
+  y="310"
   text-anchor="middle"
   dominant-baseline="central"
   font-family="Georgia, serif"
