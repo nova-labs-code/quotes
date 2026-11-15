@@ -2,7 +2,6 @@
 const STORAGE_KEY = "quotes_preferences_v1";
 
 const quoteText = document.getElementById("quoteText");
-const progress = document.getElementById("progress");
 const likeButton = document.getElementById("likeButton");
 const dislikeButton = document.getElementById("dislikeButton");
 const resetButton = document.getElementById("resetButton");
@@ -12,6 +11,7 @@ let quotes = [];
 let currentQuote = null;
 let history = [];
 let historyIndex = -1;
+
 let preferences = {
   liked: [],
   disliked: [],
@@ -46,7 +46,6 @@ function savePreferences() {
   }
 }
 
-// Normalize quotes into comparable words.
 function tokenize(text) {
   return text
     .toLowerCase()
@@ -56,7 +55,6 @@ function tokenize(text) {
     .filter(word => word.length > 2);
 }
 
-// Remove common words that provide little recommendation value.
 const stopWords = new Set([
   "the", "and", "that", "this", "with", "from",
   "your", "you", "are", "was", "were", "will",
@@ -75,7 +73,16 @@ function getKeywords(text) {
   return tokenize(text).filter(word => !stopWords.has(word));
 }
 
-// Calculate quote similarity using weighted word overlap.
+function getBigrams(words) {
+  const result = new Set();
+
+  for (let i = 0; i < words.length - 1; i++) {
+    result.add(`${words[i]} ${words[i + 1]}`);
+  }
+
+  return result;
+}
+
 function similarity(a, b) {
   const wordsA = getKeywords(a);
   const wordsB = getKeywords(b);
@@ -92,10 +99,8 @@ function similarity(a, b) {
   }
 
   const union = new Set([...setA, ...setB]).size;
-
   const jaccard = intersection / union;
 
-  // Reward shared consecutive phrases.
   const bigramsA = getBigrams(wordsA);
   const bigramsB = getBigrams(wordsB);
 
@@ -112,17 +117,6 @@ function similarity(a, b) {
   return jaccard * 0.75 + phraseScore * 0.25;
 }
 
-function getBigrams(words) {
-  const result = new Set();
-
-  for (let i = 0; i < words.length - 1; i++) {
-    result.add(`${words[i]} ${words[i + 1]}`);
-  }
-
-  return result;
-}
-
-// Compare a candidate against all liked and disliked quotes.
 function recommendationScore(candidate) {
   const likedQuotes = quotes.filter(q =>
     preferences.liked.includes(q.id)
@@ -149,7 +143,6 @@ function recommendationScore(candidate) {
     );
   }
 
-  // Prefer unseen quotes and avoid repeating feedback.
   return positive * 1.5 - negative * 1.2;
 }
 
@@ -160,9 +153,10 @@ function getNextQuote() {
 
   if (!available.length) return null;
 
-  // Initial discovery: randomized order.
-  if (preferences.liked.length === 0 &&
-      preferences.disliked.length === 0) {
+  if (
+    preferences.liked.length === 0 &&
+    preferences.disliked.length === 0
+  ) {
     return available[Math.floor(Math.random() * available.length)];
   }
 
@@ -173,8 +167,6 @@ function getNextQuote() {
 
   ranked.sort((a, b) => b.score - a.score);
 
-  // Occasionally explore less similar quotes to avoid
-  // trapping the recommendations in one narrow subject.
   const explore = Math.random() < 0.15;
 
   if (explore) {
@@ -182,15 +174,9 @@ function getNextQuote() {
     return pool[Math.floor(Math.random() * pool.length)].quote;
   }
 
-  // Randomize among the best-scoring candidates.
   const top = ranked.slice(0, Math.min(3, ranked.length));
 
   return top[Math.floor(Math.random() * top.length)].quote;
-}
-
-function updateProgress() {
-  progress.textContent =
-    `${historyIndex + 1} / ${quotes.length}`;
 }
 
 function updateButtons() {
@@ -208,17 +194,26 @@ function updateButtons() {
 
 function displayQuote(quote, addToHistory = true) {
   if (!quote) {
+    currentQuote = null;
+
     quoteText.textContent =
       "You've discovered every quote. Reset your preferences to start again.";
-    progress.textContent = `${quotes.length} / ${quotes.length}`;
-    currentQuote = null;
-    updateButtons();
+
+    likeButton.classList.remove("selected");
+    dislikeButton.classList.remove("selected");
+
+    likeButton.setAttribute("aria-pressed", "false");
+    dislikeButton.setAttribute("aria-pressed", "false");
+
     return;
   }
 
   currentQuote = quote;
 
   if (addToHistory) {
+    // Remove forward history when discovering a new quote.
+    history = history.slice(0, historyIndex + 1);
+
     history.push(quote.id);
     historyIndex = history.length - 1;
   }
@@ -230,16 +225,21 @@ function displayQuote(quote, addToHistory = true) {
     quoteText.classList.remove("changing");
 
     updateButtons();
-    updateProgress();
+    isChanging = false;
   }, 150);
 }
 
 function showNextQuote() {
   if (isChanging) return;
 
+  // First, move through existing browsing history.
   if (historyIndex < history.length - 1) {
     historyIndex++;
-    const quote = quotes.find(q => q.id === history[historyIndex]);
+
+    const quote = quotes.find(
+      q => q.id === history[historyIndex]
+    );
+
     displayQuote(quote, false);
     return;
   }
@@ -258,7 +258,7 @@ function showNextQuote() {
 }
 
 function showPreviousQuote() {
-  if (historyIndex <= 0 || isChanging) return;
+  if (isChanging || historyIndex <= 0) return;
 
   historyIndex--;
 
@@ -266,15 +266,16 @@ function showPreviousQuote() {
     q => q.id === history[historyIndex]
   );
 
-  displayQuote(previous, false);
+  if (previous) {
+    displayQuote(previous, false);
+  }
 }
 
 function vote(type) {
-  if (!currentQuote) return;
+  if (!currentQuote || isChanging) return;
 
   const id = currentQuote.id;
 
-  // Remove any previous opposite vote.
   preferences.liked = preferences.liked.filter(x => x !== id);
   preferences.disliked = preferences.disliked.filter(x => x !== id);
 
@@ -287,11 +288,9 @@ function vote(type) {
   savePreferences();
   updateButtons();
 
-  // A vote immediately advances the feed.
   showNextQuote();
 }
 
-// Load the plain-text quote file.
 async function loadQuotes() {
   try {
     const response = await fetch("./data.quotes", {
@@ -319,17 +318,16 @@ async function loadQuotes() {
 
     loadPreferences();
 
-    // Discard saved IDs that no longer exist in the data file.
     const validIds = new Set(quotes.map(q => q.id));
 
     preferences.liked = preferences.liked.filter(id => validIds.has(id));
     preferences.disliked = preferences.disliked.filter(id => validIds.has(id));
     preferences.seen = preferences.seen.filter(id => validIds.has(id));
 
-    // Avoid showing previously seen quotes at startup.
     history = [];
+    historyIndex = -1;
 
-    // If everything has been seen, allow another discovery round.
+    // Start another discovery round only if all quotes were seen.
     if (preferences.seen.length >= quotes.length) {
       preferences.seen = [];
       savePreferences();
@@ -345,7 +343,6 @@ async function loadQuotes() {
   }
 }
 
-// Buttons
 likeButton.addEventListener("click", () => vote("like"));
 dislikeButton.addEventListener("click", () => vote("dislike"));
 
@@ -369,7 +366,6 @@ resetButton.addEventListener("click", () => {
   showNextQuote();
 });
 
-// Keyboard navigation
 document.addEventListener("keydown", event => {
   if (event.key === "ArrowRight") {
     event.preventDefault();
@@ -386,7 +382,6 @@ document.addEventListener("keydown", event => {
   }
 });
 
-// Swipe navigation
 app.addEventListener("touchstart", event => {
   if (!event.touches.length) return;
 
@@ -413,5 +408,4 @@ app.addEventListener("touchend", event => {
   }
 }, { passive: true });
 
-// Start
 loadQuotes();
