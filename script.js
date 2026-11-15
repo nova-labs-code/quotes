@@ -30,16 +30,28 @@ function generateWebsiteIcons() {
         fill="#a855f7"
       />
 
-      <text
-  x="256"
-  y="310"
-  text-anchor="middle"
-  dominant-baseline="central"
-  font-family="Georgia, serif"
-  font-size="340"
-  font-weight="bold"
+      <!-- First quotation mark -->
+<path
+  d="M211 185
+     C184 185 165 204 165 230
+     C165 254 183 270 206 270
+     C199 291 184 309 165 327
+     C202 316 231 285 237 248
+     C244 210 232 185 211 185 Z"
   fill="#ffffff"
->“</text>
+/>
+
+<!-- Second quotation mark -->
+<path
+  d="M211 185
+     C184 185 165 204 165 230
+     C165 254 183 270 206 270
+     C199 291 184 309 165 327
+     C202 316 231 285 237 248
+     C244 210 232 185 211 185 Z"
+  fill="#ffffff"
+  transform="translate(104 0)"
+/>
 
     </svg>
   `;
