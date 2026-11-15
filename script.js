@@ -31,14 +31,15 @@ function generateWebsiteIcons() {
       />
 
       <text
-        x="256"
-        y="365"
-        text-anchor="middle"
-        font-family="Georgia, serif"
-        font-size="380"
-        font-weight="bold"
-        fill="#ffffff"
-      >“</text>
+  x="256"
+  y="256"
+  text-anchor="middle"
+  dominant-baseline="central"
+  font-family="Georgia, serif"
+  font-size="340"
+  font-weight="bold"
+  fill="#ffffff"
+>“</text>
 
     </svg>
   `;
